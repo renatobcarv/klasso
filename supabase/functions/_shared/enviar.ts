@@ -1,7 +1,7 @@
 // Envio de texto pelo número da empresa (oficial ou QR), usado pelo robô das automações.
 // Mesmas regras do whatsapp-send: opt-out, janela de 24h da API oficial, registro em wamsg e uso do plano.
 import { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
-import { GRAPH, credenciaisDaEmpresa, evo } from './wa.ts';
+import { GRAPH, credenciaisDaEmpresa, evo, avancarParaConversa } from './wa.ts';
 
 export async function enviarTexto(admin: SupabaseClient, orgId: string, lead: any, texto: string, por = 'Robô') {
   if (lead?.optOut) return { ok: false, erro: 'opt-out' };
@@ -30,12 +30,13 @@ export async function enviarTexto(admin: SupabaseClient, orgId: string, lead: an
   return { ok: true, id };
 }
 
-/** Alguém do time respondeu: o robô se cala naquele contato pelo tempo definido nas regras. */
+/** Alguém do time respondeu: o robô se cala naquele contato pelo tempo definido nas regras e o lead sai de "Novo contato". */
 export async function pausarRobo(admin: SupabaseClient, orgId: string, leadId: string) {
   const { data: rg } = await admin.from('records').select('data').match({ org_id: orgId, collection: 'automacoes', id: '_regras' }).maybeSingle();
   const h = Number(rg?.data?.pausaHumanoH || 24);
   const { data: l } = await admin.from('records').select('data').match({ org_id: orgId, collection: 'leads', id: leadId }).maybeSingle();
   if (!l) return;
   const now = new Date();
-  await admin.from('records').upsert({ org_id: orgId, collection: 'leads', id: leadId, data: { ...l.data, roboPausadoAte: new Date(now.getTime() + h * 3600e3).toISOString(), updatedAt: now.toISOString() }, updated_at: now.toISOString() });
+  // Resposta humana também tira o cartão de "Novo contato".
+  await admin.from('records').upsert({ org_id: orgId, collection: 'leads', id: leadId, data: { ...(avancarParaConversa(l.data, now.toISOString().slice(0, 10)) || l.data), roboPausadoAte: new Date(now.getTime() + h * 3600e3).toISOString(), updatedAt: now.toISOString() }, updated_at: now.toISOString() });
 }

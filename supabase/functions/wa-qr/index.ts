@@ -3,10 +3,10 @@
 // Riscos (mostrados ao cliente e aceitos explicitamente): o número pode ser banido pela Meta e
 // não chega a origem do anúncio (ctwa_clid). Recomendado usar um número secundário.
 // Ações (body.acao): 'conectar' (cria a instância e devolve o QR), 'qr' (QR novo), 'status', 'sincronizar'
-// (recupera conversas perdidas enquanto o servidor estava fora), 'desconectar'.
+// (recupera conversas perdidas enquanto o servidor estava fora e puxa os nomes), 'nomes' (só os nomes dos contatos), 'desconectar'.
 // Só dono/administrador da empresa. Segredos: EVO_URL, EVO_KEY, EVO_WEBHOOK_TOKEN.
 
-import { cors, json, adminClient, userClient, evo, instanciaDa, recuperarEvo } from '../_shared/wa.ts';
+import { cors, json, adminClient, userClient, evo, instanciaDa, recuperarEvo, nomesEvo } from '../_shared/wa.ts';
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
@@ -55,7 +55,12 @@ Deno.serve(async (req) => {
     }
     if (acao === 'sincronizar') {
       const r = await recuperarEvo(admin, cx);
-      return json({ ok: true, ...r });
+      let n = { nomes: 0 };
+      try { n = await nomesEvo(admin, orgId, inst); } catch (e) { console.warn('nomes', (e as Error).message); }
+      return json({ ok: true, ...r, nomes: n.nomes });
+    }
+    if (acao === 'nomes') {
+      return json({ ok: true, ...(await nomesEvo(admin, orgId, inst)) });
     }
     if (acao === 'desconectar') {
       try { await evo(`/instance/logout/${inst}`, 'DELETE'); } catch { /* já estava fora */ }

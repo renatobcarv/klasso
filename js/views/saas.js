@@ -87,7 +87,7 @@ async function whatsapp(root) {
   const { data, error } = await sb().from('wa_connections').select('*').eq('org_id', org().id).order('created_at');
   if (error) { box.innerHTML = `<p class="hint">Rode a migração 002 no Supabase para conectar números.</p>`; return; }
   const st = { conectado: 'good', pendente: 'warn', erro: 'bad', desconectado: '' };
-  box.innerHTML = (data.length ? data.map((c) => `<div class="member-row"><div class="who"><b>${esc(c.telefone || c.phone_number_id)}</b><small>${esc(c.nome_verificado || '')}${c.qualidade ? ' · qualidade ' + esc(c.qualidade) : ''}${c.erro ? ' · ' + esc(c.erro) : ''}</small></div>${c.tipo === 'qr' ? '<span class="badge warn">QR</span>' : ''}<span class="badge ${st[c.status] || ''}">${esc(c.status)}</span>${c.tipo === 'qr' && c.status !== 'conectado' ? '<button class="btn sm" data-saas="wa-qr-novo">Ler QR</button>' : ''}${c.tipo === 'qr' && c.status === 'conectado' ? `<button class="btn sm ghost" data-saas="wa-qr-sync" title="${c.ultima_sync ? 'Última busca: ' + esc(new Date(c.ultima_sync).toLocaleString('pt-BR')) : ''}">Buscar conversas perdidas</button>` : ''}<button class="btn sm ghost" ${c.tipo === 'qr' ? 'data-waqrrm="1"' : `data-warm="${esc(c.id)}"`}>Desconectar</button></div>`).join('') : '<p class="empty-sm">Nenhum número conectado.</p>')
+  box.innerHTML = (data.length ? data.map((c) => `<div class="member-row"><div class="who"><b>${esc(c.telefone || c.phone_number_id)}</b><small>${esc(c.nome_verificado || '')}${c.qualidade ? ' · qualidade ' + esc(c.qualidade) : ''}${c.erro ? ' · ' + esc(c.erro) : ''}</small></div>${c.tipo === 'qr' ? '<span class="badge warn">QR</span>' : ''}<span class="badge ${st[c.status] || ''}">${esc(c.status)}</span>${c.tipo === 'qr' && c.status !== 'conectado' ? '<button class="btn sm" data-saas="wa-qr-novo">Ler QR</button>' : ''}${c.tipo === 'qr' && c.status === 'conectado' ? `<button class="btn sm ghost" data-saas="wa-qr-sync" title="${c.ultima_sync ? 'Última busca: ' + esc(new Date(c.ultima_sync).toLocaleString('pt-BR')) : ''}">Buscar conversas e nomes</button>` : ''}<button class="btn sm ghost" ${c.tipo === 'qr' ? 'data-waqrrm="1"' : `data-warm="${esc(c.id)}"`}>Desconectar</button></div>`).join('') : '<p class="empty-sm">Nenhum número conectado.</p>')
     + (!META_APP_ID ? '<p class="hint">A conexão pelo painel está sendo liberada pela Meta. Enquanto isso, nosso time conecta o seu número com você pela conexão assistida.</p>' : '');
   // Com número conectado, o funil passa a usar o WhatsApp oficial (conversa dentro do app).
   const ligado = data.some((c) => c.status === 'conectado');
@@ -129,7 +129,8 @@ async function qrCall(acao, extra = {}) {
 async function sincronizarQr(root, silencioso = false) {
   try {
     const r = await qrCall('sincronizar');
-    if (r.msgs || !silencioso) toast(r.msgs ? `Recuperadas ${r.msgs} mensagem(ns)${r.novos ? `, ${r.novos} lead(s) novo(s) no Funil` : ''}.` : 'Nada perdido: tudo já estava no Funil.');
+    const nomes = r.nomes ? ` ${r.nomes} contato(s) ganharam o nome do WhatsApp.` : '';
+    if (r.msgs || r.nomes || !silencioso) toast((r.msgs ? `Recuperadas ${r.msgs} mensagem(ns)${r.novos ? `, ${r.novos} lead(s) novo(s) no Funil` : ''}.` : 'Nada perdido: tudo já estava no Funil.') + nomes);
   } catch (e) { if (!silencioso) toast(e.message, 'bad'); }
 }
 function conectarQr(root, jaAceito = false) {
