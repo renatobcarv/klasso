@@ -12,7 +12,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 import { aoReceber, emSegundoPlano } from '../_shared/automacao.ts';
-import { GRAPH, credenciaisDaEmpresa } from '../_shared/wa.ts';
+import { GRAPH, credenciaisDaEmpresa, chaveTel as chave, semNome, nomePerfil } from '../_shared/wa.ts';
 import { guardarMidia } from '../_shared/midia.ts';
 
 const enc = new TextEncoder();
@@ -25,7 +25,6 @@ async function assinaturaOk(raw: string, sig: string | null, secret: string) {
   let d = 0; for (let i = 0; i < a.length; i++) d |= a.charCodeAt(i) ^ hex.charCodeAt(i);
   return d === 0;
 }
-const chave = (t: string) => String(t || '').replace(/\D/g, '').replace(/^55/, '').slice(-11);
 const texto = (m: any) => m.text?.body || m.button?.text || m.interactive?.button_reply?.title || m.interactive?.list_reply?.title
   || (m.type === 'image' ? '📷 Imagem' : m.type === 'audio' ? '🎤 Áudio' : m.type === 'document' ? '📄 Documento' : m.type === 'video' ? '🎬 Vídeo' : m.type === 'location' ? '📍 Localização' : `[${m.type}]`);
 
@@ -88,10 +87,15 @@ Deno.serve(async (req) => {
       const { error: dup } = await admin.from('wa_events').insert({ id: String(m.id), org_id: orgId });
       if (dup) continue;
       const k = chave(m.from); let lead = porTel.get(k); const eraNovo = !lead;
+      const perfil = nomePerfil(nomes.get(m.from));
+      if (lead && perfil && semNome(lead.data?.nome)) { // lead que estava só com o número ganha o nome do perfil
+        lead.data = { ...lead.data, nome: perfil, nomeWhats: perfil, updatedAt: now };
+        out.push({ org_id: orgId, collection: 'leads', id: lead.id, data: lead.data, updated_at: now });
+      }
       if (!lead) {
         const ref = m.referral || {};
         const id = 'wa_' + k;
-        const data = { id, nome: nomes.get(m.from) || m.from, telefone: m.from, entrada: hoje, etapa: 'novo', etapaFunil: 'novo', funilId: 'principal', etapaMax: 0,
+        const data = { id, nome: perfil || m.from, ...(perfil ? { nomeWhats: perfil } : {}), telefone: m.from, entrada: hoje, etapa: 'novo', etapaFunil: 'novo', funilId: 'principal', etapaMax: 0,
           origem: ref.source_type === 'ad' ? 'Meta Ads' : 'WhatsApp', anuncio: ref.headline || '', ctwaClid: ref.ctwa_clid || '', adId: ref.source_id || '',
           historico: [{ data: hoje, etapa: 'novo', col: 'novo' }], viaApi: true, createdAt: now, updatedAt: now };
         lead = { id, data }; porTel.set(k, lead);

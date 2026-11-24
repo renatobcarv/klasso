@@ -5,7 +5,7 @@ import { store } from './store.js';
 import { esc, today, addDays, fmtDate } from './util.js';
 import { courseName, settings } from './metrics.js';
 import { myName } from './leads.js';
-import { openDialog, toast } from './ui.js';
+import { openDialog, toast, ICON } from './ui.js';
 import { auth } from './auth.js';
 
 export const RESULTADOS = [
@@ -53,6 +53,19 @@ export function botoes(l) {
   </div>`;
 }
 
+/** Versão compacta para o cartão do Kanban: só ícones, sem cor gritando. O texto fica no title/aria-label. */
+export function botoesIcone(l) {
+  if (!digitos(l.telefone)) return '';
+  const n = tentativas(l);
+  return `<a class="lc-ic lc-wa" href="${esc(waHref(l))}" target="_blank" rel="noopener" data-wa="${esc(l.id)}" title="Chamar no WhatsApp" aria-label="Chamar ${esc(l.nome)} no WhatsApp">${ICON.whats}</a>
+    <a class="lc-ic" href="${esc(telHref(l.telefone))}" data-tel="${esc(l.id)}" title="Ligar${n ? ' (' + n + ' tentativa' + (n > 1 ? 's' : '') + ')' : ''}" aria-label="Ligar para ${esc(l.nome)}">${ICON.fone}${n ? `<small>${n}</small>` : ''}</a>`;
+}
+/** Último toque registrado, em texto curto (ou vazio). */
+export function ultimoContato(l) {
+  const ult = (l.contatos || []).slice(-1)[0]; if (!ult) return '';
+  return `${ult.canal === 'tel' ? 'Ligação' : 'WhatsApp'}: ${LABEL[ult.resultado] || (ult.canal === 'wa' ? 'mensagem' : 'ligação')} · ${fmtDate(ult.data)}`;
+}
+
 /** Fila do modo ligação: retornos vencidos, de hoje, quem nunca foi contatado e depois os mais quentes. */
 export function fila(leads) {
   const t = today(); const peso = { Quente: 0, Morno: 1, Frio: 2 };
@@ -62,13 +75,54 @@ export function fila(leads) {
     .sort((a, b) => pr(a) - pr(b) || (peso[a.temperatura] ?? 1) - (peso[b.temperatura] ?? 1) || String(a.entrada).localeCompare(String(b.entrada)));
 }
 
-const ROTEIRO = [
-  ['Abertura (10s)', 'Oi, {nome}? Aqui é {eu}, da escola. Você pediu informação sobre {curso}, lembra? Tem 2 minutinhos?'],
-  ['Descobrir', 'O que te fez procurar esse curso agora? É pra trabalhar na área ou já trabalha?'],
-  ['Conectar', 'Faz sentido. A turma é presencial, com prática desde a primeira aula e certificado.'],
-  ['Fechar', 'Tenho vaga na turma que começa em breve. Quer que eu reserve a sua com o sinal no Pix?'],
-  ['Objeção de preço', 'Entendo. Dá pra parcelar e a reserva segura o valor de hoje. Fica melhor no cartão ou no Pix?'],
+export const ROTEIRO_PADRAO = [
+  { titulo: 'Abertura (10s)', texto: 'Oi, {nome}? Aqui é {eu}, da escola. Você pediu informação sobre {curso}, lembra? Tem 2 minutinhos?' },
+  { titulo: 'Descobrir', texto: 'O que te fez procurar esse curso agora? É pra trabalhar na área ou já trabalha?' },
+  { titulo: 'Conectar', texto: 'Faz sentido. A turma é presencial, com prática desde a primeira aula e certificado.' },
+  { titulo: 'Fechar', texto: 'Tenho vaga na turma que começa em breve. Quer que eu reserve a sua com o sinal no Pix?' },
+  { titulo: 'Objeção de preço', texto: 'Entendo. Dá pra parcelar e a reserva segura o valor de hoje. Fica melhor no cartão ou no Pix?' },
 ];
+/** Roteiro da escola (Configurações › settings.roteiroLigacao); sem roteiro salvo, usa o padrão. */
+export const roteiro = () => { const r = settings().roteiroLigacao; return Array.isArray(r) && r.length ? r : ROTEIRO_PADRAO; };
+
+/** Editor do roteiro: etapas com título e fala. {nome}, {eu} e {curso} são trocados na hora da ligação. */
+export function roteiroDialog(onSaved) {
+  let itens = roteiro().map((x) => ({ ...x }));
+  const linha = (x, i) => `<li class="rt-row" data-i="${i}">
+    <div class="rt-head"><input data-k="titulo" value="${esc(x.titulo || '')}" placeholder="Nome da etapa (ex.: Abertura)" aria-label="Nome da etapa ${i + 1}">
+      <span class="st-move"><button type="button" class="icon-btn sm" data-rt-up aria-label="Subir etapa"${i ? '' : ' disabled'}>↑</button><button type="button" class="icon-btn sm" data-rt-rm aria-label="Remover etapa">×</button></span></div>
+    <textarea data-k="texto" rows="3" placeholder="O que falar nesta etapa" aria-label="Fala da etapa ${i + 1}">${esc(x.texto || '')}</textarea></li>`;
+  const { dlg, err } = openDialog({
+    title: 'Editar roteiro de ligação', wide: true, saveLabel: 'Salvar roteiro',
+    html: `<p class="hint">Use <code>{nome}</code> (primeiro nome do lead), <code>{eu}</code> (seu nome) e <code>{curso}</code>: o sistema troca na hora da ligação. Vale para todo o time.</p>
+      <ol class="rt-list" id="rt-list"></ol>
+      <div class="row-actions"><button type="button" class="btn sm" data-rt-add>+ Nova etapa</button><span class="grow"></span><button type="button" class="btn sm ghost" data-rt-reset>Voltar ao roteiro padrão</button></div>`,
+    onOpen: (form) => {
+      const lista = form.querySelector('#rt-list');
+      const ler = () => { itens = [...lista.querySelectorAll('.rt-row')].map((li) => ({ titulo: li.querySelector('[data-k="titulo"]').value.trim(), texto: li.querySelector('[data-k="texto"]').value.trim() })); };
+      const pintar = () => { lista.innerHTML = itens.map(linha).join(''); };
+      pintar();
+      form.addEventListener('click', (e) => {
+        const b = e.target.closest('button'); if (!b) return;
+        const i = Number(b.closest('.rt-row')?.dataset.i);
+        if (b.hasAttribute('data-rt-add')) { ler(); itens.push({ titulo: '', texto: '' }); pintar(); lista.querySelector('.rt-row:last-child input')?.focus(); }
+        else if (b.hasAttribute('data-rt-rm')) { ler(); itens.splice(i, 1); pintar(); }
+        else if (b.hasAttribute('data-rt-up') && i > 0) { ler(); [itens[i - 1], itens[i]] = [itens[i], itens[i - 1]]; pintar(); }
+        else if (b.hasAttribute('data-rt-reset')) { itens = ROTEIRO_PADRAO.map((x) => ({ ...x })); pintar(); }
+      });
+      dlg._lerRoteiro = ler;
+    },
+    onSave: () => {
+      dlg._lerRoteiro();
+      const limpos = itens.filter((x) => x.titulo || x.texto);
+      if (!limpos.length) { err.textContent = 'Deixe pelo menos uma etapa no roteiro.'; err.hidden = false; return false; }
+      if (store.bloqueado?.('settings')) { err.textContent = 'Seu perfil não pode alterar o roteiro. Peça ao coordenador.'; err.hidden = false; return false; }
+      store.put('settings', { ...store.settings(), id: 'main', roteiroLigacao: limpos.map((x) => ({ titulo: x.titulo || 'Etapa', texto: x.texto })) });
+      toast('Roteiro salvo para todo o time.');
+      onSaved?.();
+    },
+  });
+}
 
 /** Tela do modo ligação: um lead por vez, roteiro na tela e um toque para o resultado. */
 export function discador(leads, pos = 0) {
@@ -76,7 +130,7 @@ export function discador(leads, pos = 0) {
   const meta = Number(settings().metaLigacoes) || 30;
   if (!fl.length) return `<div class="empty"><h3>Fila zerada</h3><p>Nenhum lead com telefone pendente agora. ${hoje} ligações hoje.</p></div>`;
   const i = Math.min(pos, fl.length - 1); const l = fl[i];
-  const sub = (s) => s.replace('{nome}', String(l.nome || '').replace(/^\[.*?\]\s*/, '').split(' ')[0]).replace('{eu}', myName() || 'eu').replace('{curso}', courseName(l.cursoId) || 'o curso');
+  const sub = (s) => String(s || '').replace(/\{nome\}/gi, String(l.nome || '').replace(/^\[.*?\]\s*/, '').split(' ')[0]).replace(/\{eu\}/gi, myName() || 'eu').replace(/\{curso\}/gi, courseName(l.cursoId) || 'o curso');
   const hist = (l.contatos || []).slice(-4).reverse();
   return `<div class="dial">
     <div class="dial-top">
@@ -98,7 +152,7 @@ export function discador(leads, pos = 0) {
         <button type="button" class="btn sm ghost" data-pular="${i + 1}">Pular →</button></div>
       ${hist.length ? `<ul class="dial-hist">${hist.map((c) => `<li>${fmtDate(c.data)} ${esc(c.hora || '')} · ${c.canal === 'tel' ? 'Ligação' : 'WhatsApp'}${c.resultado ? ': ' + esc(LABEL[c.resultado]) : ''}${c.por ? ' · ' + esc(c.por) : ''}</li>`).join('')}</ul>` : ''}
     </section>
-    <details class="dial-script" open><summary>Roteiro de ligação</summary><ol>${ROTEIRO.map(([t, s]) => `<li><b>${t}</b><p>${esc(sub(s))}</p></li>`).join('')}</ol></details>
+    <details class="dial-script" open><summary>Roteiro de ligação</summary><button type="button" class="btn sm ghost dial-script-edit" data-act="roteiro">Editar roteiro</button><ol>${roteiro().map((x) => `<li><b>${esc(x.titulo)}</b><p>${esc(sub(x.texto))}</p></li>`).join('')}</ol></details>
   </div>`;
 }
 

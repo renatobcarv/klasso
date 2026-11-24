@@ -3,12 +3,11 @@
 // URL: /functions/v1/automacao-entrada?o=<empresa>&a=<automação>&k=<token da automação>   (gerada na tela)
 // Corpo aceito: { nome, telefone, email, curso, origem, ...extras }. Cria ou atualiza o lead pelo telefone e roda o fluxo.
 // Publicar SEM JWT. O token é por automação (trocável na tela) e comparado em tempo constante.
-import { adminClient } from '../_shared/wa.ts';
+import { adminClient, chaveTel as chave } from '../_shared/wa.ts';
 import { contexto, rodarLead } from '../_shared/automacao.ts';
 
 function igual(a: string, b: string) { if (!a || a.length !== b.length) return false; let d = 0; for (let i = 0; i < a.length; i++) d |= a.charCodeAt(i) ^ b.charCodeAt(i); return d === 0; }
 const r = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status, headers: { 'Content-Type': 'application/json' } });
-const chave = (t: string) => String(t || '').replace(/\D/g, '').replace(/^55/, '').slice(-11);
 
 Deno.serve(async (req) => {
   if (req.method !== 'POST') return r({ error: 'use POST' }, 405);

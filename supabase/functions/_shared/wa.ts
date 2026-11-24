@@ -53,7 +53,27 @@ export async function evo(path: string, method = 'GET', body?: unknown) {
 }
 
 // Grava mensagens da Evolution (webhook ou recuperação): cria lead novo e a conversa. Idempotente por wa_events.
-const chaveTel = (t: string) => String(t || '').replace(/\D/g, '').replace(/^55/, '').slice(-11);
+/** Mesma chave do app (util.js phoneKey): sem 55 e sem o nono dígito. O WhatsApp manda muitos números
+ *  brasileiros SEM o 9 (5561 8198-0795); a planilha/Meta manda COM (61 9 8198-0795). Sem isso, duplica o lead. */
+export const chaveTel = (t: string) => {
+  let d = String(t || '').replace(/\D/g, '');
+  if (d.length > 11 && d.startsWith('55')) d = d.slice(2);
+  if (d.length === 11 && d[2] === '9') d = d.slice(0, 2) + d.slice(3);
+  return d;
+};
+/** Lead "sem nome": vazio ou só o telefone (dígitos, +, espaço, traço, parênteses). */
+export const semNome = (n: unknown) => !String(n || '').trim() || /^[\d\s+()\-.]+$/.test(String(n));
+/** Nome de perfil do WhatsApp aproveitável (não vazio, não só número, sem quebra de linha). */
+export const nomePerfil = (n: unknown) => { const s = String(n || '').replace(/\s+/g, ' ').trim().slice(0, 80); return s && !semNome(s) ? s : ''; };
+
+/** Alguém do TIME falou com o lead: quem estava em "Novo contato" passa para "Em conversa".
+ *  Não mexe em quem já avançou, ganhou ou perdeu. Devolve os dados novos ou null se nada mudou.
+ *  etapaFunil fica vazio para o app achar a coluna "Em conversa" de qualquer funil (leadCol usa o nível). */
+export function avancarParaConversa(d: any, dia: string) {
+  if (!d || (d.etapa && d.etapa !== 'novo')) return null;
+  return { ...d, etapa: 'conversa', etapaFunil: '', etapaMax: Math.max(Number(d.etapaMax) || 0, 1), primeiraResposta: d.primeiraResposta || dia,
+    historico: [...(d.historico || []), { data: dia, etapa: 'conversa', col: '', auto: 'whatsapp' }] };
+}
 const textoEvo = (m: any = {}) => m.conversation || m.extendedTextMessage?.text || m.imageMessage?.caption || m.videoMessage?.caption || m.documentMessage?.caption || m.buttonsResponseMessage?.selectedDisplayText
   || (m.imageMessage ? '📷 Imagem' : m.audioMessage ? '🎤 Áudio' : m.documentMessage ? '📄 Documento' : m.videoMessage ? '🎬 Vídeo' : m.locationMessage ? '📍 Localização' : m.stickerMessage ? 'Figurinha' : '[mensagem]');
 const MIDIA = ['imageMessage', 'videoMessage', 'audioMessage', 'documentMessage', 'documentWithCaptionMessage'];
@@ -82,10 +102,16 @@ export async function ingerirEvo(admin: SupabaseClient, orgId: string, lista: an
     if (!ls) ls = (await admin.from('records').select('id,data').match({ org_id: orgId, collection: 'leads' })).data || [];
     let lead = ls.find((r: any) => chaveTel(r.data?.telefone) === k); const eraNovo = !lead;
     const em = d.messageTimestamp ? new Date(Number(d.messageTimestamp) * 1000).toISOString() : now;
+    // pushName só vale em mensagem RECEBIDA (na enviada, é o nome do próprio celular da escola).
+    const perfil = fromMe ? '' : nomePerfil(d.pushName);
+    if (lead && perfil && semNome(lead.data?.nome)) {
+      lead.data = { ...lead.data, nome: perfil, nomeWhats: perfil, updatedAt: now };
+      out.push({ org_id: orgId, collection: 'leads', id: lead.id, data: lead.data, updated_at: now });
+    }
     if (!lead) {
       if (fromMe) continue; // mensagem que a escola mandou para quem não é lead: não cria lead
       const dia = em.slice(0, 10), id = 'wa_' + k;
-      const data = { id, nome: d.pushName || num, telefone: num, entrada: dia, etapa: 'novo', etapaFunil: 'novo', funilId: 'principal', etapaMax: 0,
+      const data = { id, nome: perfil || num, ...(perfil ? { nomeWhats: perfil } : {}), telefone: num, entrada: dia, etapa: 'novo', etapaFunil: 'novo', funilId: 'principal', etapaMax: 0,
         origem: 'WhatsApp', historico: [{ data: dia, etapa: 'novo', col: 'novo' }], viaApi: true, viaQr: true, createdAt: now, updatedAt: now };
       lead = { id, data }; ls.push(lead); novos++; out.push({ org_id: orgId, collection: 'leads', id, data, updated_at: now });
     }
@@ -95,12 +121,15 @@ export async function ingerirEvo(admin: SupabaseClient, orgId: string, lista: an
     out.push({ org_id: orgId, collection: 'wamsg', id: mid, data: { id: mid, leadId: lead.id, dir: fromMe ? 'out' : 'in', texto: midia && /^(📷|🎤|📄|🎬) /.test(txt) ? '' : txt, ...(midia ? { midia } : {}), em, waId: d.key.id, ...(fromMe ? { por: 'Celular', status: 'sent' } : {}), createdAt: now, updatedAt: now }, updated_at: now });
     msgs++;
     if (!fromMe) eventos.push({ leadId: lead.id, texto: txt, novo: eraNovo });
-    else { // alguém do time respondeu pelo celular: o robô se cala neste contato por 24h
-      lead.data = { ...lead.data, roboPausadoAte: new Date(Date.now() + 24 * 3600e3).toISOString(), updatedAt: now };
+    else { // alguém do time respondeu pelo celular: o robô se cala neste contato por 24h e o cartão vai para "Em conversa"
+      lead.data = { ...(avancarParaConversa(lead.data, em.slice(0, 10)) || lead.data), roboPausadoAte: new Date(Date.now() + 24 * 3600e3).toISOString(), updatedAt: now };
       out.push({ org_id: orgId, collection: 'leads', id: lead.id, data: lead.data, updated_at: now });
     }
   }
-  if (out.length) { const { error } = await admin.from('records').upsert(out); if (error) throw new Error(error.message); }
+  // O mesmo lead pode aparecer mais de uma vez no lote (nome + resposta do time): fica a última versão,
+  // senão o Postgres recusa o upsert ("cannot affect row a second time").
+  const unico = [...new Map(out.map((r) => [r.collection + '|' + r.id, r])).values()];
+  if (unico.length) { const { error } = await admin.from('records').upsert(unico); if (error) throw new Error(error.message); }
   if (connId) await admin.from('wa_connections').update({ ultima_sync: now }).eq('id', connId);
   return { novos, msgs, eventos };
 }
@@ -117,4 +146,27 @@ export async function recuperarEvo(admin: SupabaseClient, cx: { id: string; org_
     if (!recs.length || page >= Number(j?.messages?.pages || 1)) break;
   }
   return ingerirEvo(admin, cx.org_id, achadas, cx.id);
+}
+
+/** Puxa o nome do perfil de cada contato salvo na Evolution e preenche os leads que estão só com o número.
+ *  Nunca troca um nome que alguém já digitou. */
+export async function nomesEvo(admin: SupabaseClient, orgId: string, inst: string) {
+  const j = await evo(`/chat/findContacts/${inst}`, 'POST', { where: {} });
+  const lista: any[] = Array.isArray(j) ? j : j?.contacts || j?.records || [];
+  const porTel = new Map<string, string>();
+  for (const c of lista) {
+    const jid = String(c?.remoteJid || c?.id || '');
+    if (!jid.endsWith('@s.whatsapp.net')) continue;
+    const n = nomePerfil(c?.pushName || c?.name || c?.verifiedName);
+    if (n) porTel.set(chaveTel(jid.split('@')[0]), n);
+  }
+  const { data: ls } = await admin.from('records').select('id,data').match({ org_id: orgId, collection: 'leads' });
+  const now = new Date().toISOString(); const out: any[] = [];
+  for (const r of ls || []) {
+    if (!semNome(r.data?.nome)) continue;
+    const n = porTel.get(chaveTel(r.data?.telefone)); if (!n) continue;
+    out.push({ org_id: orgId, collection: 'leads', id: r.id, data: { ...r.data, nome: n, nomeWhats: n, updatedAt: now }, updated_at: now });
+  }
+  for (let i = 0; i < out.length; i += 500) { const { error } = await admin.from('records').upsert(out.slice(i, i + 500)); if (error) throw new Error(error.message); }
+  return { nomes: out.length, contatos: porTel.size };
 }

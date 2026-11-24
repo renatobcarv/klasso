@@ -109,3 +109,15 @@ npx supabase functions deploy wa-qr --project-ref kqaqccjsoqdpbnnyyemw
 npx supabase functions deploy wa-qr-webhook --no-verify-jwt --project-ref kqaqccjsoqdpbnnyyemw
 npx supabase functions deploy whatsapp-send --project-ref kqaqccjsoqdpbnnyyemw
 ```
+
+## Nomes e etapa automáticos (24/11/2026)
+- **Nome do contato**: lead criado ou ainda "sem nome" (só o número) recebe o nome do perfil do WhatsApp
+  (`profile.name` na API oficial, `pushName` no QR) na próxima mensagem que a pessoa mandar. Nome digitado pelo time nunca é trocado.
+- **Leads antigos (QR)**: "Buscar conversas e nomes" em Configurações chama `wa-qr` com `sincronizar`, que agora também
+  lê os contatos da Evolution (`/chat/findContacts`) e preenche os nomes. Ação avulsa: `acao: 'nomes'`.
+- **Telefone**: as funções usam a mesma chave do app (`chaveTel` = `phoneKey`: sem 55 e sem o nono dígito). Antes, número
+  vindo do WhatsApp sem o 9 não batia com o lead importado com o 9 e gerava cartão duplicado.
+- **Etapa**: quando o time responde (pelo app ou pelo celular conectado por QR), o lead sai de "Novo contato" e vai para
+  "Em conversa". Quem já avançou, ganhou ou perdeu não é mexido. Resposta do robô não move.
+- Para valer em produção: publicar `whatsapp-webhook`, `wa-qr-webhook`, `wa-qr`, `whatsapp-send`, `automacao-entrada`
+  e as que usam `_shared/enviar.ts`/`_shared/automacao.ts` (`automacao-tick`, `automacao-ia`). Sem migração de banco.

@@ -10,7 +10,7 @@ import {
   matriculaDialog, loseDialog, editLead, courseOpts, campOpts, moveToCol, pipelines, pipeline, leadCol, leadStage, leadPipeId,
   pipeDialog, productDialog, responsaveis, tagList, TEMPERATURAS, myName, recebido,
 } from '../leads.js';
-import { botoes, discador, registrar, RESULTADOS, waApi } from '../contato.js';
+import { botoesIcone, ultimoContato, discador, registrar, RESULTADOS, waApi, roteiroDialog } from '../contato.js';
 
 const PIPE_KEY = 'liceu.funil.atual';
 let tab = 'kanban';
@@ -97,35 +97,48 @@ const daysInStage = (l) => { const h = (l.historico || []).at(-1); const d = h?.
 
 function cardHTML(l, p) {
   const t = today();
-  const late = l.proximaData && l.proximaData < t && OPEN(l);
-  const due = l.proximaData && l.proximaData === t && OPEN(l);
+  const aberto = OPEN(l);
+  const late = l.proximaData && l.proximaData < t && aberto;
+  const due = l.proximaData && l.proximaData === t && aberto;
   const col = leadCol(l, p);
   const i = p.etapas.findIndex((e) => e.id === col);
   const next = i >= 0 && i < p.etapas.length - 1 ? p.etapas[i + 1] : null;
-  const parado = OPEN(l) ? daysInStage(l) : 0;
+  const parado = aberto ? daysInStage(l) : 0;
   const prod = store.get('products', l.produtoId);
   const tags = tagList(l.etiquetas);
   const temp = l.temperatura ? `<span class="temp t-${norm(l.temperatura)}" title="${esc(l.temperatura)}" aria-label="${esc(l.temperatura)}"></span>` : '';
+  const interesse = prod?.nome || courseName(l.cursoId);
+  const origem = [l.origem, l.campanhaId ? campaignName(l.campanhaId) : ''].filter(Boolean).join(' · ');
+  const ult = aberto ? ultimoContato(l) : '';
+  // Situação em uma linha: retorno (o que mais importa) ou tempo parado na etapa.
+  const status = l.etapa === 'matriculado'
+    ? `<span class="good">${brl(l.valor)}</span> · ${esc(l.statusPagamento || 'Pago')}${l.statusPagamento && l.statusPagamento !== 'Pago' ? ' (' + brl(recebido(l)) + ')' : ''} · ${fmtDate(l.dataMatricula)}`
+    : l.etapa === 'perdido'
+      ? `${esc(l.motivoPerda || 'Sem motivo')} · ${fmtDate(l.dataPerda)}`
+      : late ? `<span class="ls-bad">Retorno atrasado · ${fmtDate(l.proximaData)}</span>`
+        : due ? '<span class="ls-warn">Retorno hoje</span>'
+          : `<span class="${parado >= 7 ? 'ls-warn' : ''}">${parado === 0 ? 'Entrou na etapa hoje' : parado + (parado > 1 ? ' dias' : ' dia') + ' na etapa'}</span>${l.proximaData ? ' · retorno ' + fmtDate(l.proximaData) : ''}`;
   return `<article class="lead${late ? ' late' : ''}${parado >= 7 ? ' stale' : ''}" draggable="true" data-drag="${esc(l.id)}" aria-label="${esc(l.nome)}, ${esc(leadStage(l))}">
     <div class="lead-top">
-      <button type="button" class="lead-open" data-edit="${esc(l.id)}"><b>${temp}${esc(l.nome)}</b><small>${esc(prod?.nome || courseName(l.cursoId))}</small></button>
-      ${l.responsavel ? `<span class="avatar" title="${esc(l.responsavel)}">${esc(initials(l.responsavel))}</span>` : ''}
+      <button type="button" class="lead-open" data-edit="${esc(l.id)}"><b>${temp}<span>${esc(l.nome)}</span></b>${interesse ? `<small title="${esc(interesse)}">${esc(interesse)}</small>` : ''}</button>
+      ${l.responsavel ? `<span class="avatar" title="Responsável: ${esc(l.responsavel)}">${esc(initials(l.responsavel))}</span>` : ''}
     </div>
-    ${l.visitouEm && OPEN(l) ? `<p class="tags"><span class="tag tag-visit">Visitou ${fmtDate(l.visitouEm)}</span></p>` : ''}
-    ${tags.length ? `<p class="tags">${tags.slice(0, 3).map((x) => `<span class="tag">${esc(x)}</span>`).join('')}</p>` : ''}
-    ${l.origem || l.campanhaId ? `<p class="lead-meta">${esc(l.origem || '')}${l.campanhaId ? ' · ' + esc(campaignName(l.campanhaId)) : ''}</p>` : ''}
-    ${l.etapa === 'matriculado'
-      ? `<p class="lead-meta"><b class="good">${brl(l.valor)}</b> · ${esc(l.statusPagamento || 'Pago')}${l.statusPagamento && l.statusPagamento !== 'Pago' ? ' (' + brl(recebido(l)) + ')' : ''} · ${fmtDate(l.dataMatricula)}</p>`
-      : l.etapa === 'perdido'
-        ? `<p class="lead-meta">${esc(l.motivoPerda || 'Sem motivo')} · ${fmtDate(l.dataPerda)}</p>`
-        : `<p class="lead-meta">${l.valor ? `<b>${brl(l.valor)}</b> · ` : ''}<span class="${parado >= 7 ? 'warn-t' : ''}">${parado === 0 ? 'Mudou hoje' : parado + (parado > 1 ? ' dias' : ' dia') + ' na etapa'}</span>${l.proximaData ? ` · <span class="${late ? 'bad' : due ? 'warn-t' : ''}">${due ? 'retorno hoje' : 'retorno ' + fmtDate(l.proximaData)}</span>` : ''}</p>`}
-    ${l.proximaAcao && OPEN(l) ? `<p class="lead-next">${esc(l.proximaAcao)}</p>` : ''}
-    ${OPEN(l) ? botoes(l) : ''}
-    ${OPEN(l) ? `<div class="lead-actions">
-      ${next ? `<button type="button" class="btn sm" data-move="${esc(l.id)}" data-to="${esc(next.id)}" title="Mover para ${esc(next.nome)}">${ICON.arrow}</button>` : ''}
-      ${l.visitouEm ? '' : `<button type="button" class="btn sm" data-visit="${esc(l.id)}" title="Marcar que visitou a escola">Visitou</button>`}
-      <button type="button" class="btn sm win" data-win="${esc(l.id)}">✓ Ganho</button>
-      <button type="button" class="btn sm ghost" data-lose="${esc(l.id)}">Perdido</button>
+    ${(l.visitouEm && aberto) || tags.length ? `<p class="tags">${l.visitouEm && aberto ? `<span class="tag tag-visit">Visitou ${fmtDate(l.visitouEm)}</span>` : ''}${tags.slice(0, 2).map((x) => `<span class="tag">${esc(x)}</span>`).join('')}${tags.length > 2 ? `<span class="tag">+${tags.length - 2}</span>` : ''}</p>` : ''}
+    ${origem ? `<p class="lead-origem" title="${esc(origem)}">${esc(origem)}</p>` : ''}
+    ${l.proximaAcao && aberto ? `<p class="lead-next">${esc(l.proximaAcao)}</p>` : ''}
+    <p class="lead-status">${status}${l.valor && aberto ? ` · <b>${brl(l.valor)}</b>` : ''}</p>
+    ${ult ? `<p class="lead-ult">${esc(ult)}</p>` : ''}
+    ${aberto ? `<div class="lead-foot">
+      <span class="lead-ct">${botoesIcone(l)}</span>
+      <span class="lead-acts">
+        ${next ? `<button type="button" class="lc-ic" data-move="${esc(l.id)}" data-to="${esc(next.id)}" title="Mover para ${esc(next.nome)}" aria-label="Mover para ${esc(next.nome)}">${ICON.arrow}</button>` : ''}
+        <button type="button" class="lc-win" data-win="${esc(l.id)}" title="Registrar matrícula">${ICON.check}<span>Ganho</span></button>
+        <details class="lead-more"><summary class="lc-ic" title="Mais ações" aria-label="Mais ações">${ICON.mais}</summary><div class="lead-pop">
+          ${l.visitouEm ? '' : `<button type="button" data-visit="${esc(l.id)}">Marcar que visitou</button>`}
+          <button type="button" data-edit="${esc(l.id)}">Abrir ficha</button>
+          <button type="button" class="bad" data-lose="${esc(l.id)}">Marcar como perdido</button>
+        </div></details>
+      </span>
     </div>` : ''}
   </article>`;
 }
@@ -175,7 +188,7 @@ function board(ctx, p) {
       <div class="col-body">${items.slice(0, 20).map((l) => cardHTML(l, p)).join('') || `<p class="col-empty">${c.id === 'ganho' ? 'Solte aqui quem fechou' : 'Solte um cartão aqui'}</p>`}${more > 0 ? `<button type="button" class="link" data-tab="lista">Ver todos (+${more})</button>` : ''}</div>
     </section>`;
   }).join('')}</div>
-  <p class="hint">Arraste os cartões entre as colunas ou use os botões. Ganhos e perdidos aparecem só dentro do período escolhido no topo. Cartão com borda âmbar está parado há 7 dias ou mais.</p>`;
+  <p class="hint">Arraste os cartões entre as colunas ou use os botões. Ganhos e perdidos aparecem só dentro do período escolhido no topo. Prazo em âmbar: parado há 7 dias ou mais. Em vermelho: retorno atrasado.</p>`;
 }
 
 function list(ctx, p) {
@@ -483,6 +496,8 @@ export function mount(root, ctx) {
     qf.querySelector('h2')?.addEventListener('click', () => { quickAberto = qf.classList.toggle('fechado') === false; if (quickAberto) qf.querySelector('input')?.focus(); });
   }
   root.addEventListener('click', (e) => {
+    // Um menu "⋯" aberto por vez; clicar fora ou numa ação fecha.
+    root.querySelectorAll('.lead-more[open]').forEach((d) => { if (!d.contains(e.target) || e.target.closest('.lead-pop button')) d.open = false; });
     const km = e.target.closest('[data-act="kpis-todos"]'); if (km) { const k = root.querySelector('#fn-kpis'); const todos = k.classList.toggle('limit') === false; km.textContent = todos ? 'Mostrar só o essencial' : 'Ver todos os números do funil'; return; }
     const wa = e.target.closest('[data-wa]'); if (wa) { if (waApi()) { e.preventDefault(); location.hash = '#conversas?lead=' + encodeURIComponent(wa.dataset.wa); } else registrar(wa.dataset.wa, 'wa'); return; }
     const tel = e.target.closest('[data-tel]'); if (tel) { if (!tel.dataset.nopop) setTimeout(() => resultadoDialog(tel.dataset.tel, ctx), 400); return; }
@@ -557,6 +572,7 @@ export function mount(root, ctx) {
       toast(ids.length === 1 ? '1 lead excluído.' : ids.length + ' leads excluídos.');
       return ctx.refresh();
     }
+    if (ds.act === 'roteiro') return roteiroDialog(() => ctx.refresh());
     if (ds.act === 'resp') return respDialog(null, ctx);
     if (ds.act === 'import') return importDialog(ctx, p);
     if (ds.act === 'zerar') return zerarDialog(ctx, p);
