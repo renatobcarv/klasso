@@ -2155,60 +2155,140 @@ dialog.wa-qr-dlg { width: min(400px, calc(100vw - 32px)); padding: var(--space-6
 .rt-row textarea { resize: vertical; min-height: 64px; }
 .rt-row input:focus, .rt-row textarea:focus { outline: none; border-color: var(--primary); }
 
-/* ===================== App interno sóbrio: grafite liso (2026-11-24) =====================
-   Pedido do usuário (print da tela carregando): cards grafite lisos, sem glow, sem fundo líquido.
-   Lima só na ação (botão principal, item ativo, número-chave). Roxo sai das telas internas e fica no logo.
-   O fundo líquido/vidro (app-motion.js) está desligado; esta camada limpa o que sobrou. Vendas não usa este CSS. */
+/* ===================== App interno: Liquid Glass (2026-11-24) =====================
+   Pedido do usuário: "mais Apple liquid glass". Substitui a camada grafite lisa.
+   - Vidro de verdade (blur + saturação), borda com reflexo de luz em cima, cantos generosos, sombra NEUTRA.
+   - O vidro precisa de algo atrás: fundo escuro com luzes suaves quase sem cor (fixo, sem animação).
+   - Lima só na ação (botão principal, item ativo, número-chave). Roxo fica no logo. Nada de glow colorido.
+   - Desempenho: blur só em painéis grandes (menu, topo, cards, colunas, diálogos). Cartões do funil: vidro sem blur.
+   O fundo líquido animado antigo (app-motion.js) segue desligado. Vendas não usa este CSS. */
 :root:not([data-theme="light"]), :root[data-paleta]:not([data-theme="light"]) {
-  --background: #0a0a0c; --bg: #0a0a0c; --card: #131316; --surface: #18181c; --muted: #1d1d22; --border: #25252b;
-  --glow: none; --glow-soft: none; --forest: #131316;
+  --background: #08080a; --bg: #08080a; --card: #141418; --surface: rgb(255 255 255 / .055); --muted: rgb(255 255 255 / .07); --border: rgb(255 255 255 / .1);
+  --glow: none; --glow-soft: none; --forest: #141418;
+  --lg-fill: rgb(255 255 255 / .045);          /* corpo do vidro */
+  --lg-fill-hi: rgb(255 255 255 / .075);       /* vidro em destaque / hover */
+  --lg-edge: rgb(255 255 255 / .11);           /* contorno */
+  --lg-spec: inset 0 1px 0 rgb(255 255 255 / .16), inset 0 -1px 0 rgb(255 255 255 / .03), inset 1px 0 0 rgb(255 255 255 / .04);
+  --lg-depth: 0 10px 30px -12px rgb(0 0 0 / .55), 0 2px 6px rgb(0 0 0 / .25);
+  --lg-blur: blur(28px) saturate(170%);
+  --lg-r: 22px;
 }
-:root:not([data-theme="light"]) body { background: var(--background); }
+/* Fundo: luzes suaves e quase neutras, como papel de parede escuro da Apple. Fixo para o vidro "andar" sobre ele. */
+:root:not([data-theme="light"]) body {
+  background:
+    radial-gradient(60vw 50vh at 8% -5%, rgb(150 160 255 / .10), transparent 60%),
+    radial-gradient(50vw 45vh at 100% 20%, rgb(198 255 0 / .05), transparent 60%),
+    radial-gradient(70vw 60vh at 60% 110%, rgb(255 255 255 / .06), transparent 60%),
+    radial-gradient(40vw 40vh at 30% 60%, rgb(120 100 160 / .07), transparent 65%),
+    var(--background);
+  background-attachment: fixed;
+}
 #main *, .side *, .topbar * { text-shadow: none !important; }
+.mo-progress, .app-bg { display: none !important; }
 
-/* Menu lateral: grafite, item ativo em lima sólido */
-:root:not([data-theme="light"]) .side { background: #0f0f12 !important; border: 1px solid rgb(255 255 255 / .06); box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
-.side .nav-group { color: #6b6b75; }
-.nav a, .nav a .ni { color: #b4b4bd; }
-.nav a:not([aria-current="page"]):hover, :root:not([data-theme="light"]) .nav a:not([aria-current="page"]):hover, .nav-mais > summary:hover { background: rgb(255 255 255 / .05); color: #fff; }
-.nav a:not([aria-current="page"]):hover .ni { color: #fff; }
-.nav a[aria-current="page"] { background: var(--primary) !important; color: var(--primary-foreground, #0a0a0c) !important; box-shadow: none !important; font-weight: 600; }
-.nav a[aria-current="page"] .ni { color: var(--primary-foreground, #0a0a0c) !important; }
-.nav a[aria-current="page"]::before { display: none; }
-.side-foot { border-top-color: rgb(255 255 255 / .06); }
-.bottom-nav a[aria-current="page"] { background: var(--primary) !important; color: var(--primary-foreground, #0a0a0c) !important; box-shadow: none !important; }
-.bottom-nav a[aria-current="page"] svg { color: currentColor; }
-
-/* Cards, KPIs e blocos: superfície lisa, borda fina, sem sombra colorida */
-.card, .kpi, .tm-card, .conq, .feat, .missoes, .kb-col { background: var(--card); border: 1px solid rgb(255 255 255 / .06); box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
-.card:hover, .kpi:hover, .card.pick:hover, .est:hover { border-color: rgb(255 255 255 / .14); box-shadow: none; }
-.kpi::after { display: none !important; }
-.kpi h3::before, .eyebrow::before, .kpi:nth-child(n) h3::before { background: rgb(255 255 255 / .28); }
+/* Painéis de vidro */
+:root:not([data-theme="light"]) :is(.card, .kpi, .tm-card, .conq, .feat, .missoes, .kb-col, .board .col, .lote-bar, details.more, .dial-card, .dial-script, .game-hero, .cv, .au-trig) {
+  background: var(--lg-fill) !important; border: 1px solid var(--lg-edge) !important; border-radius: var(--lg-r);
+  box-shadow: var(--lg-spec), var(--lg-depth) !important;
+  backdrop-filter: var(--lg-blur); -webkit-backdrop-filter: var(--lg-blur);
+}
+:root:not([data-theme="light"]) :is(.card, .kpi, .tm-card, .card.pick, .est):hover { background: var(--lg-fill-hi) !important; border-color: rgb(255 255 255 / .16) !important; }
+/* Reflexo especular: luz que bate de cima à esquerda */
+:root:not([data-theme="light"]) :is(.card, .kpi, .game-hero) { position: relative; isolation: isolate; }
+:root:not([data-theme="light"]) :is(.card, .kpi, .game-hero)::before {
+  content: ""; position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none;
+  background: linear-gradient(150deg, rgb(255 255 255 / .07) 0%, transparent 32%, transparent 70%, rgb(255 255 255 / .02) 100%);
+}
+.kpi::after, .game-hero::after { display: none !important; }
+.kpi h3::before, .eyebrow::before, .kpi:nth-child(n) h3::before { background: rgb(255 255 255 / .35); }
 .kpi-v { color: var(--heading-strong); }
 #view-kicker { color: var(--muted-foreground); }
-.skel { background: linear-gradient(90deg, var(--card) 0%, var(--surface) 50%, var(--card) 100%); background-size: 200% 100%; }
+.skel { background: linear-gradient(90deg, rgb(255 255 255 / .03) 0%, rgb(255 255 255 / .07) 50%, rgb(255 255 255 / .03) 100%); background-size: 200% 100%; border: 1px solid rgb(255 255 255 / .06); border-radius: var(--lg-r); }
 
-/* Patente: grafite com lima no detalhe (antes bloco roxo) */
-.game-hero { background: var(--card) !important; border: 1px solid rgb(255 255 255 / .08); box-shadow: none !important; }
-.game-hero::before { display: none !important; }
+/* Menu lateral: vidro flutuante, item ativo em pílula lima */
+:root:not([data-theme="light"]) .side {
+  background: rgb(22 22 28 / .55) !important; border: 1px solid var(--lg-edge); border-radius: 26px;
+  box-shadow: var(--lg-spec), 0 20px 50px -20px rgb(0 0 0 / .7); backdrop-filter: var(--lg-blur); -webkit-backdrop-filter: var(--lg-blur);
+}
+.side .nav-group { color: rgb(255 255 255 / .38); }
+.nav a { border-radius: 14px; color: rgb(255 255 255 / .78); }
+.nav a .ni { color: rgb(255 255 255 / .6); }
+.nav a:not([aria-current="page"]):hover, :root:not([data-theme="light"]) .nav a:not([aria-current="page"]):hover, .nav-mais > summary:hover { background: rgb(255 255 255 / .07); color: #fff; }
+.nav a:not([aria-current="page"]):hover .ni { color: #fff; }
+.nav a[aria-current="page"] { background: var(--primary) !important; color: #0a0a0c !important; font-weight: 600; box-shadow: inset 0 1px 0 rgb(255 255 255 / .45), 0 6px 16px -8px rgb(0 0 0 / .6) !important; }
+.nav a[aria-current="page"] .ni { color: #0a0a0c !important; }
+.nav a[aria-current="page"]::before { display: none; }
+.side-foot { border-top-color: rgb(255 255 255 / .08); }
+:root:not([data-theme="light"]) .bottom-nav { background: rgb(22 22 28 / .6) !important; backdrop-filter: var(--lg-blur); -webkit-backdrop-filter: var(--lg-blur); border-top: 1px solid var(--lg-edge); }
+.bottom-nav a[aria-current="page"] { background: var(--primary) !important; color: #0a0a0c !important; box-shadow: none !important; border-radius: 14px; }
+.bottom-nav a[aria-current="page"] svg { color: currentColor; }
 
-/* Hoje, Conversas e Automações: o roxo vira neutro */
-.hj-n { background: rgb(255 255 255 / .08); color: var(--foreground); }
-.hj-item:hover { border-color: rgb(255 255 255 / .14); background: rgb(255 255 255 / .03); transform: none; }
-.hj-av, .cv-av { background: var(--surface); color: var(--foreground); border: 1px solid rgb(255 255 255 / .08); }
-.cv-it.on { background: rgb(255 255 255 / .06); }
-.cv-thread { background: var(--background); }
-.cv-anexo { background: rgb(255 255 255 / .06); }
+/* Barra do topo: vidro fino que deixa o conteúdo passar por baixo */
+:root:not([data-theme="light"]) .topbar { background: rgb(8 8 10 / .45); backdrop-filter: var(--lg-blur); -webkit-backdrop-filter: var(--lg-blur); border-bottom: 1px solid rgb(255 255 255 / .06); }
+
+/* Botões e controles em pílula de vidro */
+:root:not([data-theme="light"]) :is(.btn, .icon-btn, .chip, .seg-b, .pipe-tab, .step-pill, .tb-mais > summary) {
+  background: rgb(255 255 255 / .06); border-color: rgb(255 255 255 / .12); color: var(--foreground);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / .1); backdrop-filter: blur(16px) saturate(160%); -webkit-backdrop-filter: blur(16px) saturate(160%);
+}
+:root:not([data-theme="light"]) :is(.btn, .icon-btn, .chip, .seg-b, .pipe-tab):hover { background: rgb(255 255 255 / .1); border-color: rgb(255 255 255 / .2); color: #fff; }
+.btn svg, .icon-btn { color: currentColor; }
+:root:not([data-theme="light"]) .btn.ghost { background: transparent; border-color: transparent; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; color: rgb(255 255 255 / .75); }
+:root:not([data-theme="light"]) .btn.ghost:hover { background: rgb(255 255 255 / .07); }
+:root:not([data-theme="light"]) :is(.btn.primary, .chip[aria-pressed="true"], .seg-b[aria-pressed="true"], .pipe-tab[aria-selected="true"], .step-pill.on) {
+  background: var(--primary); border-color: transparent; color: #0a0a0c; box-shadow: inset 0 1px 0 rgb(255 255 255 / .5), 0 6px 16px -8px rgb(0 0 0 / .6);
+}
+:root:not([data-theme="light"]) .btn.primary:hover { background: color-mix(in srgb, var(--primary) 88%, white); color: #0a0a0c; }
+.btn.danger, .btn.ghost.danger, .btn.danger.ghost { color: var(--destructive); }
+.ms-check[aria-pressed="true"], .xp-float { box-shadow: none; }
+
+/* Campos: vidro escuro, foco com anel claro */
+:root:not([data-theme="light"]) :is(#main, #dlg) :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, textarea) {
+  background-color: rgb(0 0 0 / .25); border-color: rgb(255 255 255 / .12); border-radius: 12px;
+}
+:root:not([data-theme="light"]) :is(#main, #dlg) :is(input, select, textarea):focus { border-color: rgb(255 255 255 / .35) !important; box-shadow: 0 0 0 4px rgb(255 255 255 / .06) !important; outline: none; }
+:root:not([data-theme="light"]) select option { background: #141418; }
+
+/* Diálogos e menus flutuantes: vidro mais denso */
+:root:not([data-theme="light"]) dialog#dlg { background: rgb(24 24 30 / .72); border: 1px solid rgb(255 255 255 / .14); border-radius: 28px; box-shadow: var(--lg-spec), 0 40px 80px -20px rgb(0 0 0 / .8); backdrop-filter: blur(40px) saturate(180%); -webkit-backdrop-filter: blur(40px) saturate(180%); }
+dialog::backdrop { background: rgb(0 0 0 / .45); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+:root:not([data-theme="light"]) :is(.lead-pop, .tb-pop, .toast) { background: rgb(28 28 34 / .78) !important; border: 1px solid rgb(255 255 255 / .14) !important; box-shadow: var(--lg-spec), 0 20px 40px -12px rgb(0 0 0 / .7) !important; backdrop-filter: blur(30px) saturate(180%); -webkit-backdrop-filter: blur(30px) saturate(180%); }
+
+:is(.lead-pop, .tb-pop) { border-radius: 16px; }
+
+/* Funil: colunas de vidro, cartões em vidro leve (sem blur próprio, para rolar liso com muitos cartões) */
+.board .col header { border-bottom-color: rgb(255 255 255 / .08); }
+.board .col .count { background: rgb(255 255 255 / .08); border-radius: 8px; }
+:root:not([data-theme="light"]) .lead { background: rgb(255 255 255 / .05); border-color: rgb(255 255 255 / .09); border-radius: 16px; box-shadow: inset 0 1px 0 rgb(255 255 255 / .08), 0 4px 12px -6px rgb(0 0 0 / .5); }
+:root:not([data-theme="light"]) .lead:hover { background: rgb(255 255 255 / .08); border-color: rgb(255 255 255 / .16); }
+:root:not([data-theme="light"]) .lead.late { box-shadow: inset 3px 0 0 var(--destructive), inset 0 1px 0 rgb(255 255 255 / .08), 0 4px 12px -6px rgb(0 0 0 / .5); }
+.lc-ic, .lc-win { border-radius: 10px; }
+.lead-next { background: rgb(255 255 255 / .05); border-radius: 10px; }
+.dial-call { background: var(--primary); color: #0a0a0c; box-shadow: inset 0 1px 0 rgb(255 255 255 / .5); }
+.dial-meter .tm-bar { --a: var(--primary); --b: var(--primary); }
+
+/* Hoje, Conversas e Automações: neutro (o roxo sai das telas internas) */
+.hj-n { background: rgb(255 255 255 / .1); color: var(--foreground); }
+.hj-item:hover { border-color: rgb(255 255 255 / .16); background: rgb(255 255 255 / .05); transform: none; }
+.hj-av, .cv-av { background: rgb(255 255 255 / .08); color: var(--foreground); border: 1px solid rgb(255 255 255 / .12); }
+.cv-it.on { background: rgb(255 255 255 / .08); }
+.cv-thread { background: transparent; }
+.cv-anexo { background: rgb(255 255 255 / .07); }
 .cv-por { color: var(--muted-foreground); }
-.wa-op.rec { border-color: color-mix(in srgb, var(--primary) 45%, transparent); background: rgb(255 255 255 / .02); }
+.wa-op.rec { border-color: color-mix(in srgb, var(--primary) 45%, transparent); background: rgb(255 255 255 / .04); }
 .au-card.on { border-color: color-mix(in srgb, var(--primary) 40%, transparent); }
-.au-ico { background: rgb(255 255 255 / .06); }
-.au-b.eu { background: rgb(255 255 255 / .1); }
-.au-trig { background: var(--surface); border-color: rgb(255 255 255 / .08); }
-.au-steps { border-left-color: rgb(255 255 255 / .12); }
-.au-add { border-color: rgb(255 255 255 / .14); }
+.au-ico { background: rgb(255 255 255 / .07); }
+.au-b.eu { background: rgb(255 255 255 / .12); }
+.au-steps { border-left-color: rgb(255 255 255 / .14); }
+.au-add { border-color: rgb(255 255 255 / .16); background: rgb(20 20 24 / .9); }
 
-/* Botão principal: lima chapado, sem halo */
-.btn.primary, .ms-check[aria-pressed="true"], .xp-float { box-shadow: none; }
-.btn.primary { background: var(--primary); }
-.mo-progress, .app-bg { display: none !important; }
+/* Navegador sem backdrop-filter: vidro vira superfície sólida legível */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :root:not([data-theme="light"]) :is(.card, .kpi, .board .col, .side, .topbar, dialog#dlg, .lead-pop, .tb-pop) { background: #16161b !important; }
+}
+/* Celular: menos blur (bateria e rolagem) */
+@media (max-width: 760px) { :root:not([data-theme="light"]) { --lg-blur: blur(16px) saturate(150%); } }
+/* Menos transparência pedida pelo sistema: superfícies sólidas */
+@media (prefers-reduced-transparency: reduce) {
+  :root:not([data-theme="light"]) :is(.card, .kpi, .board .col, .side, .topbar, dialog#dlg, .lead-pop, .tb-pop, .btn) { background: #16161b !important; backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
+}
