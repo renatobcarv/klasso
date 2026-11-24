@@ -2154,3 +2154,61 @@ dialog.wa-qr-dlg { width: min(400px, calc(100vw - 32px)); padding: var(--space-6
 .rt-row input { font-weight: 600; }
 .rt-row textarea { resize: vertical; min-height: 64px; }
 .rt-row input:focus, .rt-row textarea:focus { outline: none; border-color: var(--primary); }
+
+/* ===================== App interno sóbrio: grafite liso (2026-11-24) =====================
+   Pedido do usuário (print da tela carregando): cards grafite lisos, sem glow, sem fundo líquido.
+   Lima só na ação (botão principal, item ativo, número-chave). Roxo sai das telas internas e fica no logo.
+   O fundo líquido/vidro (app-motion.js) está desligado; esta camada limpa o que sobrou. Vendas não usa este CSS. */
+:root:not([data-theme="light"]), :root[data-paleta]:not([data-theme="light"]) {
+  --background: #0a0a0c; --bg: #0a0a0c; --card: #131316; --surface: #18181c; --muted: #1d1d22; --border: #25252b;
+  --glow: none; --glow-soft: none; --forest: #131316;
+}
+:root:not([data-theme="light"]) body { background: var(--background); }
+#main *, .side *, .topbar * { text-shadow: none !important; }
+
+/* Menu lateral: grafite, item ativo em lima sólido */
+:root:not([data-theme="light"]) .side { background: #0f0f12 !important; border: 1px solid rgb(255 255 255 / .06); box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
+.side .nav-group { color: #6b6b75; }
+.nav a, .nav a .ni { color: #b4b4bd; }
+.nav a:not([aria-current="page"]):hover, :root:not([data-theme="light"]) .nav a:not([aria-current="page"]):hover, .nav-mais > summary:hover { background: rgb(255 255 255 / .05); color: #fff; }
+.nav a:not([aria-current="page"]):hover .ni { color: #fff; }
+.nav a[aria-current="page"] { background: var(--primary) !important; color: var(--primary-foreground, #0a0a0c) !important; box-shadow: none !important; font-weight: 600; }
+.nav a[aria-current="page"] .ni { color: var(--primary-foreground, #0a0a0c) !important; }
+.nav a[aria-current="page"]::before { display: none; }
+.side-foot { border-top-color: rgb(255 255 255 / .06); }
+.bottom-nav a[aria-current="page"] { background: var(--primary) !important; color: var(--primary-foreground, #0a0a0c) !important; box-shadow: none !important; }
+.bottom-nav a[aria-current="page"] svg { color: currentColor; }
+
+/* Cards, KPIs e blocos: superfície lisa, borda fina, sem sombra colorida */
+.card, .kpi, .tm-card, .conq, .feat, .missoes, .kb-col { background: var(--card); border: 1px solid rgb(255 255 255 / .06); box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
+.card:hover, .kpi:hover, .card.pick:hover, .est:hover { border-color: rgb(255 255 255 / .14); box-shadow: none; }
+.kpi::after { display: none !important; }
+.kpi h3::before, .eyebrow::before, .kpi:nth-child(n) h3::before { background: rgb(255 255 255 / .28); }
+.kpi-v { color: var(--heading-strong); }
+#view-kicker { color: var(--muted-foreground); }
+.skel { background: linear-gradient(90deg, var(--card) 0%, var(--surface) 50%, var(--card) 100%); background-size: 200% 100%; }
+
+/* Patente: grafite com lima no detalhe (antes bloco roxo) */
+.game-hero { background: var(--card) !important; border: 1px solid rgb(255 255 255 / .08); box-shadow: none !important; }
+.game-hero::before { display: none !important; }
+
+/* Hoje, Conversas e Automações: o roxo vira neutro */
+.hj-n { background: rgb(255 255 255 / .08); color: var(--foreground); }
+.hj-item:hover { border-color: rgb(255 255 255 / .14); background: rgb(255 255 255 / .03); transform: none; }
+.hj-av, .cv-av { background: var(--surface); color: var(--foreground); border: 1px solid rgb(255 255 255 / .08); }
+.cv-it.on { background: rgb(255 255 255 / .06); }
+.cv-thread { background: var(--background); }
+.cv-anexo { background: rgb(255 255 255 / .06); }
+.cv-por { color: var(--muted-foreground); }
+.wa-op.rec { border-color: color-mix(in srgb, var(--primary) 45%, transparent); background: rgb(255 255 255 / .02); }
+.au-card.on { border-color: color-mix(in srgb, var(--primary) 40%, transparent); }
+.au-ico { background: rgb(255 255 255 / .06); }
+.au-b.eu { background: rgb(255 255 255 / .1); }
+.au-trig { background: var(--surface); border-color: rgb(255 255 255 / .08); }
+.au-steps { border-left-color: rgb(255 255 255 / .12); }
+.au-add { border-color: rgb(255 255 255 / .14); }
+
+/* Botão principal: lima chapado, sem halo */
+.btn.primary, .ms-check[aria-pressed="true"], .xp-float { box-shadow: none; }
+.btn.primary { background: var(--primary); }
+.mo-progress, .app-bg { display: none !important; }

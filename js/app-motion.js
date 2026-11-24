@@ -5,6 +5,9 @@ const calmo = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const ALVOS = '.card, .kpi, .game-hero, .conq, .tm-card, .kb-col, .feat, .missoes';
 
 export function appMotion() {
+  // 24/11/2026: o usuário pediu o app interno sóbrio (grafite liso, sem fundo líquido, vidro nem luz do mouse).
+  // Os efeitos continuam só nas páginas de venda. Para religar aqui, apague a linha abaixo.
+  if (!window.KLASSO_APP_GLOW) return;
   if (document.querySelector('.app-bg')) return;
   // Fundo: manchas líquidas roxa e lima + granulado (fixo, atrás de tudo)
   const bg = document.createElement('div'); bg.className = 'app-bg'; bg.setAttribute('aria-hidden', 'true');
